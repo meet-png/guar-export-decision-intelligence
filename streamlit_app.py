@@ -96,8 +96,16 @@ def assemble_view(
         "recent_shift_pct",
         "shift_flag",
     ]
+    # Surging only counts if it is actionable: a fast-growing market that
+    # still pays below India's average realisation is not a re-route
+    # opportunity (Greece grows +76% but pays 36% below average). Same
+    # price guard _pick_pivot uses. FADING stays unfiltered — a shrinking
+    # market you already sell to is a warning at any price.
     surging = (
-        ranked[ranked["shift_flag"] == "SURGING"]
+        ranked[
+            (ranked["shift_flag"] == "SURGING")
+            & (ranked["price_vs_portfolio_pct"] > 0)
+        ]
         .sort_values("recent_shift_pct", ascending=False)
         .head(7)
     )
@@ -235,13 +243,16 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
         "This turns them into numbers."
     )
 
-    # ---- The chart that DOES move with the volume sliders ------------
+    # ---- The chart driven by the sliders (WHEN by tonnes/FX only) ----
     st.markdown("### 💸 What it's worth on *your* volume")
     st.caption(
-        "Move the three sliders on the left — **this chart moves with "
-        "them.** (The market charts further down show prices *across "
-        "countries*; those only change with the exchange rate, not with "
-        "how much you export — that is correct, not a bug.)"
+        "**WHEN** is the price-fall risk on your *whole* crop — it moves "
+        "with your tonnes and the exchange rate, **not** the USA-share or "
+        "re-route sliders (a guar price drop hits every tonne, wherever "
+        "it ships). **WHERE** is the re-route prize — it moves with the "
+        "USA-share and re-route sliders. The market charts further down "
+        "compare *countries*, so they change only with the exchange "
+        "rate — correct, not a bug."
     )
     impact = pd.DataFrame(
         {
@@ -282,7 +293,7 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
     st.markdown("---")
 
     # ---- Which countries pay the most (in ₹/kg) ----------------------
-    st.subheader("Which countries pay the most for your guar")
+    st.subheader("Which countries pay the most for your guar?")
     prem = v.top_premium.copy()
     prem["rs"] = prem["realised_usd_per_kg"] * fx
     fig = go.Figure(
@@ -366,8 +377,10 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
             hide_index=True,
         )
         st.caption(
-            "Growing markets are where guar demand is rising — good places "
-            "to build new buyers. Shrinking ones are early warnings."
+            "Growing markets that **pay above India's average** — real "
+            "re-route candidates, not just any rising market (one paying "
+            "less than you already get is not an opportunity). Shrinking "
+            "ones are early warnings on business you already have."
         )
 
     # ---- All the technical proof, collapsed by default ---------------
@@ -408,8 +421,9 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
             )
             st.dataframe(sc, use_container_width=True, hide_index=True)
         st.markdown(
-            "**FX sensitivity** (every rupee figure scales linearly with "
-            "the exchange rate):"
+            "**FX sensitivity** — *your current slider settings*, shown "
+            "across exchange rates (every rupee figure scales linearly "
+            "with the rate):"
         )
         fx_tbl = pd.DataFrame(
             [
