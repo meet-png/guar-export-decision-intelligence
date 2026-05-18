@@ -65,34 +65,48 @@ def assemble_view(
     us_share_pct = float(us_row["india_share_pct"].iloc[0]) if len(us_row) else 0.0
 
     ranked = radar[radar["pivot_score"].notna()]
+    prem_cols = [
+        "dest_country",
+        "realised_usd_per_kg",
+        "price_vs_portfolio_pct",
+        "india_share_pct",
+        "shift_flag",
+    ]
     top_premium = (
         ranked.sort_values("realised_usd_per_kg", ascending=False)
         .head(10)
-        .loc[
-            :,
-            [
-                "dest_country",
-                "realised_usd_per_kg",
-                "price_vs_portfolio_pct",
-                "india_share_pct",
-                "shift_flag",
-            ],
-        ]
+        .loc[:, prem_cols]
     )
-    shifts = (
-        ranked[ranked["shift_flag"].isin(["SURGING", "FADING"])]
+    # The chart promises the exporter's own market (USA) in orange for
+    # comparison, but the USA pays poorly so it is never in the top-10
+    # payers. Append it so the benchmark bar actually exists — it lands
+    # at the bottom, an honest "you are paid less than all of these".
+    if "USA" not in set(top_premium["dest_country"]):
+        top_premium = pd.concat(
+            [top_premium, radar.loc[radar["dest_country"] == "USA", prem_cols]],
+            ignore_index=True,
+        )
+    # Show the sharpest movers BOTH ways: a single descending sort buried
+    # every FADING market below the surging ones, hiding the early
+    # warnings the "markets to watch" panel exists to surface.
+    shift_cols = [
+        "dest_country",
+        "india_share_pct",
+        "realised_usd_per_kg",
+        "recent_shift_pct",
+        "shift_flag",
+    ]
+    surging = (
+        ranked[ranked["shift_flag"] == "SURGING"]
         .sort_values("recent_shift_pct", ascending=False)
-        .loc[
-            :,
-            [
-                "dest_country",
-                "india_share_pct",
-                "realised_usd_per_kg",
-                "recent_shift_pct",
-                "shift_flag",
-            ],
-        ]
+        .head(7)
     )
+    fading = (
+        ranked[ranked["shift_flag"] == "FADING"]
+        .sort_values("recent_shift_pct", ascending=True)
+        .head(7)
+    )
+    shifts = pd.concat([surging, fading]).loc[:, shift_cols]
     return View(roi, sig, move, radar, spine, us_share_pct, top_premium, shifts)
 
 
@@ -255,7 +269,12 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
         height=240,
         xaxis_title="₹ per year, on the business set by your sliders",
         yaxis=dict(autorange="reversed"),
-        xaxis=dict(range=[0, float(impact["rs"].max()) * 1.3]),
+        # No numeric ticks: they auto-render in "millions" while every bar
+        # is labelled in lakh/crore — two unit systems on one chart. The
+        # ₹-formatted data labels are the scale the exporter reads.
+        xaxis=dict(
+            range=[0, float(impact["rs"].max()) * 1.35], showticklabels=False
+        ),
         margin=dict(l=10, r=10, t=10, b=10),
     )
     st.plotly_chart(fig_money, use_container_width=True)
@@ -371,19 +390,20 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
                 "historically, after each US-drilling regime** (a "
                 "historical analogue with sample sizes — *not* a forecast):"
             )
-            sc = pd.DataFrame(v.sig.scenarios)[
-                [
-                    "regime",
-                    "n_windows",
-                    "hist_adverse_drawdown_pct",
-                    "hist_median_move_pct",
-                ]
-            ].rename(
-                columns={
-                    "regime": "US drilling regime",
-                    "n_windows": "n windows",
-                    "hist_adverse_drawdown_pct": "Worst-decile 6-mo move %",
-                    "hist_median_move_pct": "Median 6-mo move %",
+            _sc = pd.DataFrame(v.sig.scenarios)
+            sc = pd.DataFrame(
+                {
+                    "US drilling regime": _sc["regime"],
+                    "n windows": _sc["n_windows"],
+                    # hist_adverse_drawdown_pct is stored as a POSITIVE
+                    # magnitude of a drop — render it as the loss it is so
+                    # it cannot read as a gain (the opposite meaning).
+                    "Worst-decile 6-mo move": _sc["hist_adverse_drawdown_pct"].map(
+                        lambda x: f"-{x:.1f}%" if x else "0.0%"
+                    ),
+                    "Median 6-mo move": _sc["hist_median_move_pct"].map(
+                        lambda x: f"{x:+.1f}%"
+                    ),
                 }
             )
             st.dataframe(sc, use_container_width=True, hide_index=True)

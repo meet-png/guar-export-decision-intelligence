@@ -27,11 +27,18 @@ def test_assemble_view_is_complete():
     assert v.roi.downside_inr_year > 0
     assert v.roi.reroute_uplift_inr_year >= 0
     assert 30 < v.us_share_pct < 40  # US ≈ 35% of guar FOB
-    # top-paying markets sorted high→low and the honest label carried
-    prem = v.top_premium["realised_usd_per_kg"].tolist()
-    assert prem == sorted(prem, reverse=True)
+    # top payers sorted high→low, with the exporter's own USA market
+    # appended as the comparison benchmark (it pays least, sits last).
+    prem_no_usa = v.top_premium[v.top_premium["dest_country"] != "USA"][
+        "realised_usd_per_kg"
+    ].tolist()
+    assert prem_no_usa == sorted(prem_no_usa, reverse=True)
+    assert "USA" in set(v.top_premium["dest_country"])
     assert "insufficient edge" in v.sig.price_direction_label
+    # both directions must be visible — surging AND the fading early
+    # warnings (a one-way sort used to bury every fading market).
     assert set(v.shifts["shift_flag"]) <= {"SURGING", "FADING"}
+    assert {"SURGING", "FADING"} <= set(v.shifts["shift_flag"])
     # the rig-regime scenario lever is carried to the screen
     assert v.sig.scenarios and all(
         "regime" in s and "hist_adverse_drawdown_pct" in s for s in v.sig.scenarios
