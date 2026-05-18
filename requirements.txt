@@ -1,0 +1,22 @@
+# JEIS — SLIM runtime deps for the deployed Streamlit dashboard ONLY.
+#
+# Streamlit Community Cloud auto-installs this root requirements.txt. The
+# dashboard (streamlit_app.py) reads pre-computed CSVs only — including a
+# pre-fit guar forecast — so it needs just these four pure/wheel libraries.
+# No Prophet/Stan build, no statsmodels/scipy, no Java/tabula, no DB driver:
+# the deploy is fast and has zero compile steps.
+#
+# Lower bounds keep the deploy wheel-available on whatever Python Streamlit
+# Cloud runs (3.10–3.13). MAJOR-version caps are deliberate: Plotly 6 and
+# Streamlit 2 changed chart-rendering internals and made deployed charts
+# render blank / mis-sized. The whole dashboard is verified working on
+# Plotly 5.x + Streamlit 1.x — these caps keep the deploy on that proven
+# line instead of silently pulling a breaking new major.
+#
+# Exact, reproducible pins for the pipeline/CI live in:
+#   pip install -r requirements-pipeline.txt
+
+streamlit>=1.38,<2
+pandas>=2.2
+numpy>=1.26
+plotly>=5.22,<6
