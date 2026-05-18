@@ -24,7 +24,7 @@ exporter's own volume**.
 | Decision | What it says | Worth on this volume |
 |---|---|---|
 | **WHEN** | US drilling is guar's swing demand; when it cools, price downside is elevated → lock a forward to cap it | **≈ ₹87.7 L/yr** of downside at risk, capped by acting |
-| **WHERE** | You're **34.6%** exposed to the now-tariffed US; Japan pays **$2.71/kg** vs the US **$1.66** on the same HS | Re-routing 20% of US volume ≈ **₹47 L/yr** more |
+| **WHERE** | You're **34.6%** exposed to the US — which is *saturated* (India already supplies **~43%** of all US guar imports) **and** tariffed. Germany buys **$6B** of guar from the world, India only **~4%**; Japan pays **$2.71/kg** vs US **$1.66** | Re-routing 20% of US volume ≈ **₹47 L/yr** more |
 
 ## What it deliberately does **not** do — the point, not a caveat
 
@@ -64,9 +64,9 @@ UN Comtrade (HS 130232, India exports, 2019–2024)
 Ingest / clean / validate plumbing is inherited from JEIS v1. The
 product logic (`src/features/guar_price.py`, `src/features/market_radar.py`,
 `src/model/`, `src/product/`) and the one-screen app are new and
-test-covered. **33 tests** assert the things credibility depends on:
+test-covered. **37 tests** assert the things credibility depends on:
 no look-ahead, model-vs-naive honesty, corrupt-month repair, the
-rupee math, and that the screen renders.
+rupee math, world-import headroom, and that the screen renders.
 
 ## Run it
 
@@ -80,8 +80,9 @@ pip install -r requirements-pipeline.txt
 python -m src.features.guar_price        # rebuild the price spine CSV
 python -m src.features.market_radar      # rebuild the market radar CSV
 python -m src.model.price_forecast       # the honest backtest
+python -m src.ingest.comtrade_world_imports  # world-import headroom pull
 python -m src.product.exporter_roi       # the ₹ headline
-pytest -q                                # 33 tests
+pytest -q                                # 37 tests
 ```
 
 The deployed app path is intentionally statsmodels-free (verified by a
@@ -96,10 +97,11 @@ yet deployed — by choice; no public remote until intended.)*
 - **Realised price is a proxy** — UN Comtrade export value ÷ quantity,
   lagged 6–18 months, mixed grade. Robust (qty-weighted, outliers
   dropped); corrupt months repaired transparently with an audit column.
-- **WHERE is India-reporter only.** It measures India's business and
-  realised price per market; each market's *total* world imports
-  (headroom) is a flagged roadmap item needing a Comtrade mirror pull —
-  not faked.
+- **EU hub re-export.** WHERE now joins each market's *total world guar
+  imports* (Comtrade mirror pull) to give true headroom — but large hub
+  importers (Germany/Netherlands/Belgium) include intra-EU re-export, so
+  their world-import figure overstates real end-demand. Headroom is an
+  opportunity *indicator*, not a guaranteed market — stated, not hidden.
 - **No price forecast** (shown above). WHEN is a risk trigger; its rig
   signal is year-over-year because the ingested rig source is annual-
   broadcast (true weekly Baker Hughes is a documented drop-in upgrade).
