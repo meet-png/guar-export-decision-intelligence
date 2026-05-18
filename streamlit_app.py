@@ -129,21 +129,21 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
     tonnes = st.sidebar.slider(
         "How many tonnes of guar do you export per year?", 100, 3000, 600, 50
     )
-    us_share = st.sidebar.slider(
+    us_share_pct = st.sidebar.slider(
         "About how much of it goes to the USA?",
-        0.0,
-        0.9,
-        0.45,
-        0.05,
-        format="%.0f%%",
+        0,
+        90,
+        45,
+        5,
+        format="%d%%",
     )
-    reroute = st.sidebar.slider(
+    reroute_pct = st.sidebar.slider(
         "How much of that US volume would you try selling elsewhere?",
-        0.0,
-        0.5,
-        0.20,
-        0.05,
-        format="%.0f%%",
+        0,
+        50,
+        20,
+        5,
+        format="%d%%",
     )
     fx = st.sidebar.number_input("Exchange rate (₹ for $1)", 75.0, 95.0, 83.0, 0.5)
     st.sidebar.markdown("---")
@@ -153,7 +153,7 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
         "use *your* figures. This is decision guidance, not a guarantee."
     )
 
-    v = assemble_view(tonnes, us_share, reroute, fx)
+    v = assemble_view(tonnes, us_share_pct / 100.0, reroute_pct / 100.0, fx)
 
     st.title("Guar export: what to do to earn more and lose less")
     st.markdown(
@@ -184,7 +184,7 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
             f"**{v.roi.pivot_country}** pays about "
             f"**{rs_per_kg(v.roi.pivot_realised_usd_per_kg, fx)}** for the "
             "same guar.\n\n"
-            f"Moving {reroute * 100:.0f}% of your US sales there ≈ "
+            f"Moving {reroute_pct:.0f}% of your US sales there ≈ "
             f"**{inr(v.roi.reroute_uplift_inr_year)} extra per year**."
         )
     with c2:
