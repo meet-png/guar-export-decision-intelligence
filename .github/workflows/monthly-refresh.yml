@@ -1,0 +1,86 @@
+name: Monthly Data Refresh (v2)
+
+# Honest cadence: UN Comtrade reports with a 6-18 month lag, so guar
+# numbers do NOT change week to week. A weekly cron (inherited from v1)
+# would only produce churn commits with identical data. Monthly + manual
+# dispatch matches how fast the underlying public data actually moves.
+#
+# This regenerates the v2 PRODUCT artifacts (not v1's DB pipeline),
+# runs the FR-2 validation gate, and COMMITS the refreshed CSVs back —
+# that commit is what makes Streamlit Cloud redeploy with new numbers.
+# Without the commit-back the dashboard would silently go stale.
+
+on:
+  schedule:
+    - cron: "0 2 1 * *"   # 02:00 UTC on the 1st of each month
+  workflow_dispatch: {}
+
+concurrency:
+  group: v2-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # needed to commit the refreshed CSVs back to main
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      USD_INR_RATE: ${{ secrets.USD_INR_RATE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pipeline dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-pipeline.txt
+
+      - name: Pull public data (skips gracefully if no API key)
+        run: |
+          if [ -z "${COMTRADE_API_KEY}" ]; then
+            echo "::warning::COMTRADE_API_KEY not set — reusing committed raw/CSVs, no fresh pull."
+          else
+            python -m src.ingest.comtrade_api --hs-code 130232
+            python -m src.ingest.comtrade_world_imports
+          fi
+
+      - name: Rebuild v2 product artifacts
+        run: |
+          python -m src.transform.clean
+          python -m src.features.guar_price
+          python -m src.features.market_radar
+
+      - name: FR-2 validation gate (fails the job on a bad number)
+        run: python -m src.validate_product
+
+      - name: Commit refreshed artifacts back (only if changed)
+        run: |
+          git config user.name  "jeis-v2-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/processed/guar_price_monthly.csv \
+                  data/processed/market_radar.csv \
+                  data/processed/product_validation_report.json
+          if git diff --cached --quiet; then
+            echo "No data change this cycle — nothing to commit."
+          else
+            git commit -m "data: monthly v2 refresh [skip ci]"
+            git push
+          fi
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-validation-report
+          path: data/processed/product_validation_report.json
+          if-no-files-found: warn
+          retention-days: 60
