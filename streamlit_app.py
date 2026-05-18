@@ -30,6 +30,7 @@ import streamlit as st
 from src.features.guar_price import load_guar_price_series
 from src.features.market_radar import load_market_radar
 from src.model.hedge_signal import compute_hedge_signal
+from src.product.exec_summary import move_from_signals
 from src.product.exporter_roi import ExporterProfile, compute_exporter_roi
 
 
@@ -42,6 +43,7 @@ from src.product.exporter_roi import ExporterProfile, compute_exporter_roi
 class View:
     roi: object
     sig: object
+    move: object
     radar: pd.DataFrame
     spine: pd.DataFrame
     us_share_pct: float
@@ -57,6 +59,7 @@ def assemble_view(
     profile.destination_mix["USA"] = us_share
     roi = compute_exporter_roi(profile, reroute_share=reroute_share, usd_inr=usd_inr)
     sig = compute_hedge_signal()
+    move = move_from_signals(roi, sig, reroute_share)
     radar = load_market_radar()
     spine = load_guar_price_series()
 
@@ -92,7 +95,7 @@ def assemble_view(
             ],
         ]
     )
-    return View(roi, sig, radar, spine, us_share_pct, top_premium, shifts)
+    return View(roi, sig, move, radar, spine, us_share_pct, top_premium, shifts)
 
 
 def inr(amount: float) -> str:
@@ -154,8 +157,13 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
         "You decide *when* to sell and *where* to sell — today on gut. "
         "Here is each, on data, in your rupees."
     )
-    # The integrity statement — shown, never buried.
+
+    # The decisive lead — one synthesised move, read this first.
+    st.success(f"### ➤ Your #1 move\n**{v.move.headline}**\n\n{v.move.why}")
+
+    # The integrity statement — shown immediately after, never buried.
     st.warning(f"**{v.sig.price_direction_label}**  ·  {v.sig.backtest_evidence}")
+    st.caption(v.move.caveat)
 
     a, b, c = st.columns(3)
     a.metric(

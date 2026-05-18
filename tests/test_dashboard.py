@@ -36,6 +36,13 @@ def test_assemble_view_is_complete():
     assert v.sig.scenarios and all(
         "regime" in s and "hist_adverse_drawdown_pct" in s for s in v.sig.scenarios
     )
+    # the decisive lead move is synthesised and honest
+    assert v.move.action in {
+        "LOCK_FORWARD_NOW",
+        "DIVERSIFY_FROM_US",
+        "HOLD_AND_MONITOR",
+    }
+    assert v.move.headline and "do NOT forecast" in v.move.caveat
 
 
 def test_inr_formatting_lakh_and_crore():
