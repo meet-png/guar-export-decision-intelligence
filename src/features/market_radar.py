@@ -63,6 +63,7 @@ import pandas as pd
 
 from src.features.guar_price import (
     HS_PRIMARY,
+    _load_clean,
     _weighted_median,
     load_guar_price_series,
 )
@@ -161,7 +162,10 @@ def build_market_radar(
     """Per-destination market radar for one guar HS code. No forecast —
     structural facts + a transparent, documented pivot score."""
     report = report or RadarReport(hs=hs)
-    df = pd.read_parquet(in_path)
+    # Parquet-or-committed-CSV (same fallback the price spine uses): the
+    # deploy never ships exports_clean.parquet, so a stale committed
+    # market_radar.csv must rebuild from exports_clean.csv, not crash.
+    df = _load_clean(in_path)
     df["hs_code"] = df["hs_code"].astype(str)
     g = df[
         (df["hs_code"] == hs)

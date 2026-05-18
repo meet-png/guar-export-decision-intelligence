@@ -2,10 +2,13 @@
 structural facts are right and the pivot logic is sane and diversifying.
 """
 
+import shutil
+
 import pandas as pd
 import pytest
 
 from src.features.market_radar import (
+    IN_PATH_DEFAULT,
     MIN_TOTAL_FOB_USD,
     build_market_radar,
     load_market_radar,
@@ -77,6 +80,26 @@ def test_headroom_columns_present_and_strategic(radar):
         .iloc[0]
     )
     assert top["world_import_usd"] > 0
+
+
+def test_deploy_path_rebuilds_from_csv_without_parquet(tmp_path):
+    """Streamlit Cloud ships exports_clean.csv, never the .parquet. If the
+    committed market_radar.csv ever goes stale there, the radar must
+    rebuild from the committed CSV (same fallback as the price spine) —
+    not crash with a parquet FileNotFoundError that can't reproduce
+    locally (local has the parquet). Regression for that asymmetry.
+    """
+    csv_src = IN_PATH_DEFAULT.with_suffix(".csv")  # committed exports_clean.csv
+    assert csv_src.exists(), "committed exports_clean.csv must exist for deploy"
+    shutil.copy(csv_src, tmp_path / "exports_clean.csv")
+    missing_parquet = tmp_path / "exports_clean.parquet"
+    assert not missing_parquet.exists()
+
+    out = build_market_radar(in_path=missing_parquet)  # parquet absent → CSV path
+
+    assert len(out) > 100
+    assert {"dest_iso", "pivot_score", "world_import_usd"}.issubset(out.columns)
+    assert out[out["dest_iso"] == "USA"].iloc[0]["fta_status"] == "TARIFF_STRESSED"
 
 
 def test_load_api_and_determinism():
