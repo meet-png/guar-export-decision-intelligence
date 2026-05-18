@@ -1,34 +1,40 @@
-# How to add the README screenshots (2 minutes)
+# Screenshots / GIF to capture for the README
 
-The README has a screenshot slot near the top. A repo with a visual gets
-read; a wall of text gets skipped. Add **one** image and you're done.
+The README references the files below. It reads fine without them
+(graceful text), but the visuals make it top-notch. Capture from the
+**live app**, drop the files in this folder with these exact names, and
+`git add` them — the README picks them up automatically.
 
-## The one that matters: the dashboard
+> Capture from: **https://ca4enua2zdbbnteqxastgb.streamlit.app/**
+> First set the app to **Public** (Streamlit Cloud → app → Settings →
+> Sharing) so the screens reflect what an exporter actually sees.
 
-1. Open the live app:
-   https://jodhpur-export-intelligence-ashjm6at7ctsyq65hwwqxk.streamlit.app/
-2. Go to the **"4 · The 12-month forecast"** tab (it has the slider — most
-   visually alive) **or** the **"Start here"** tab (shows the 3 headline
-   numbers). Either works; the forecast tab is more impressive.
-3. Capture it:
-   - **Best (animated):** record a ~5-second screen GIF while you drag the
-     rig-count slider. Tools: ScreenToGif (Windows), or Xbox Game Bar
-     (`Win+G`) → record → convert to GIF. Save as `dashboard.gif`.
-   - **Good (static):** full-window screenshot. Save as `dashboard.png`.
-4. Put the file in this folder: `docs/img/dashboard.png` (or `.gif`).
-5. In `README.md`, find the `SCREENSHOT SLOT` comment near the top and
-   **delete the two comment markers** (`<!--` and `-->`) around the
-   `![JEIS dashboard](docs/img/dashboard.png)` line. If you used a GIF,
-   change `dashboard.png` to `dashboard.gif`.
-6. Commit: `git add docs/img/ README.md && git commit -m "docs: add dashboard screenshot" && git push`
+## Required (1 file — biggest impact)
 
-Keep the image under ~2 MB and roughly 1200–1600 px wide so it loads fast
-and renders crisply on GitHub.
+**`app-hero.png`** — one full-width screenshot of the *top* of the app:
+the title, the green **"✅ Do this first"** box, and the three cards
+(Earn more / Lose less / Be careful) visible together.
+- Browser zoom ~90–100%, window ~1400 px wide, light theme.
+- Crop to content (no OS chrome). Keep under ~1 MB (PNG, ~1400 px wide).
 
-## Optional second image: the architecture
+## Recommended (1 file — shows it's interactive)
 
-The README has an ASCII architecture diagram that already reads fine. If
-you want a polished image version later, make one in draw.io / Excalidraw,
-export as `docs/img/architecture.png`, and add `![Architecture](docs/img/architecture.png)`
-just above the ASCII block. Not required — the dashboard screenshot is 95%
-of the visual payoff.
+**`app.gif`** — a 10–15 s screen recording: load the page, scroll slowly
+top → bottom (hero → 3 cards → "countries that pay most" chart → price
+chart), then drag one sidebar slider so the rupee numbers visibly
+recompute.
+- Export as GIF, ~1000–1200 px wide, **under 8 MB** (GitHub inlines it;
+  smaller = faster). Tools: ScreenToGif / LICEcap / Kap.
+
+## Optional (nice, not needed)
+
+- **`where-chart.png`** — just the "Which countries pay the most" bar.
+- **`price-chart.png`** — the price-over-years chart with the red ✕
+  corrected month.
+
+## Notes
+
+- Do **not** commit raw recordings — `docs/img/*.mp4` is gitignored on
+  purpose; commit only the exported `.gif` / `.png`.
+- The old `dashboard.gif` was v1's furniture app and was removed — v2
+  must show v2's screen, nothing from v1.
