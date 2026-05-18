@@ -1,0 +1,103 @@
+{
+  "generated_utc": "2026-05-18T08:20:48+00:00",
+  "passed": true,
+  "n_checks": 19,
+  "n_failed": 0,
+  "checks": [
+    {
+      "name": "spine.coverage_72_months",
+      "passed": true,
+      "detail": "72 primary-HS months (expect 72)"
+    },
+    {
+      "name": "spine.price_in_band",
+      "passed": true,
+      "detail": "all months within $0.5-$5.0/kg post-repair"
+    },
+    {
+      "name": "spine.no_nan_price",
+      "passed": true,
+      "detail": "consumable price has no holes"
+    },
+    {
+      "name": "spine.imputation_sparing",
+      "passed": true,
+      "detail": "1 primary months imputed (expect 1-4: sparing, not rewriting)"
+    },
+    {
+      "name": "radar.shares_sum_100",
+      "passed": true,
+      "detail": "india_share_pct sums to 100.02"
+    },
+    {
+      "name": "radar.has_world_import_usd",
+      "passed": true,
+      "detail": "headroom column world_import_usd present"
+    },
+    {
+      "name": "radar.has_india_share_of_market_pct",
+      "passed": true,
+      "detail": "headroom column india_share_of_market_pct present"
+    },
+    {
+      "name": "radar.has_addressable_usd",
+      "passed": true,
+      "detail": "headroom column addressable_usd present"
+    },
+    {
+      "name": "radar.pivot_score_bounded",
+      "passed": true,
+      "detail": "every pivot_score in [0,100]"
+    },
+    {
+      "name": "radar.top_pivot_not_us",
+      "passed": true,
+      "detail": "top pivot = Japan (must never be the over-exposed US)"
+    },
+    {
+      "name": "radar.top_pivot_has_headroom_data",
+      "passed": true,
+      "detail": "the recommended pivot has measured world-import data, not a gap"
+    },
+    {
+      "name": "radar.us_saturation_visible",
+      "passed": true,
+      "detail": "India = 43% of US guar imports (saturation signal)"
+    },
+    {
+      "name": "when.honest_label_present",
+      "passed": true,
+      "detail": "the no-forecast integrity label is present"
+    },
+    {
+      "name": "when.trigger_valid",
+      "passed": true,
+      "detail": "trigger = NO_TRIGGER"
+    },
+    {
+      "name": "when.scenarios_monotonic",
+      "passed": true,
+      "detail": "a drilling collapse is not historically safer than steady"
+    },
+    {
+      "name": "roi.downside_positive",
+      "passed": true,
+      "detail": "downside \u2248 \u20b987.7L/yr"
+    },
+    {
+      "name": "roi.uplift_non_negative",
+      "passed": true,
+      "detail": "re-route uplift \u2248 \u20b947.2L/yr"
+    },
+    {
+      "name": "roi.uplift_only_on_real_premium",
+      "passed": true,
+      "detail": "uplift is only ever booked when the pivot pays more than the US"
+    },
+    {
+      "name": "roi.fx_linear",
+      "passed": true,
+      "detail": "every \u20b9 figure scales linearly with FX (assumption explicit)"
+    }
+  ]
+}
