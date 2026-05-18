@@ -12,7 +12,6 @@ import pytest
 from src.model.price_forecast import (
     MIN_TRAIN_MONTHS,
     assemble,
-    load_operational_exog,
     rolling_backtest,
 )
 
@@ -41,9 +40,9 @@ def test_monsoon_regressor_has_no_lookahead(frame):
 
 def test_rig_regressor_is_previous_month(frame):
     """rig_prev_month at month m must equal the rig mean of month m-1."""
-    rig = pd.read_csv(
-        load_operational_exog.__globals__["RIG_CSV"], parse_dates=["week_start_date"]
-    )
+    from src.features.regressors import RIG_CSV
+
+    rig = pd.read_csv(RIG_CSV, parse_dates=["week_start_date"])
     rig["month"] = rig["week_start_date"].dt.to_period("M").dt.to_timestamp()
     rig_m = rig.groupby("month")["rig_count"].mean()
     assert abs(frame.loc["2020-06-01", "rig_prev_month"] - rig_m["2020-05-01"]) < 1e-6

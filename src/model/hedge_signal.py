@@ -57,8 +57,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.features.guar_price import HS_PRIMARY, load_guar_price_series
-from src.model.price_forecast import PROCESSED_DIR_DEFAULT, rig_monthly
+from src.features.guar_price import (
+    HS_PRIMARY,
+    PROCESSED_DIR_DEFAULT,
+    load_guar_price_series,
+)
+from src.features.regressors import rig_monthly
 
 # The honest label that must appear wherever a WHEN price view would be
 # expected. Wording locked by product decision (2026-05-18).

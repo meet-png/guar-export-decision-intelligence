@@ -58,11 +58,10 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.stattools import adfuller
 
 from src.features.guar_price import HS_PRIMARY, load_guar_price_series
+from src.features.regressors import monsoon_map, rig_monthly
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR_DEFAULT = PROJECT_ROOT / "data" / "processed"
-RIG_CSV = PROCESSED_DIR_DEFAULT / "rig_count_clean.csv"
-MONSOON_CSV = PROCESSED_DIR_DEFAULT / "monsoon_clean.csv"
 
 # Parsimonious, explainable, *stable* spec. We model LOG price: guar price
 # is strictly positive with multiplicative dynamics, so logs stabilise the
@@ -93,15 +92,6 @@ log = logging.getLogger("price_forecast")
 # ---------------------------------------------------------------------------
 
 
-def rig_monthly() -> pd.Series:
-    """Baker Hughes NA rig count, weekly → monthly mean. The single source
-    of truth for 'rig count by month' — both the model (lagged) and the
-    hedge signal (as-of) consume this, never two different derivations."""
-    rig = pd.read_csv(RIG_CSV, parse_dates=["week_start_date"])
-    rig["month"] = rig["week_start_date"].dt.to_period("M").dt.to_timestamp()
-    return rig.groupby("month")["rig_count"].mean().sort_index()
-
-
 def load_operational_exog(index: pd.DatetimeIndex) -> pd.DataFrame:
     """Monthly exog aligned to ``index``, lagged so every value is one an
     exporter would actually know on the first of that month.
@@ -114,8 +104,7 @@ def load_operational_exog(index: pd.DatetimeIndex) -> pd.DataFrame:
     rig_m = rig_monthly()
     rig_prev = rig_m.reindex(index).ffill().bfill().shift(1)
 
-    mon = pd.read_csv(MONSOON_CSV)
-    mon_map = dict(zip(mon["year"].astype(int), mon["lpa_pct"].astype(float)))
+    mon_map = monsoon_map()
     monsoon_prev = pd.Series(
         [mon_map.get(ts.year - 1, np.nan) for ts in index], index=index
     )
