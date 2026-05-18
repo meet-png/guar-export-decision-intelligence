@@ -52,7 +52,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
@@ -83,6 +83,18 @@ RIG_YOY_DROP_THRESHOLD_PCT = -10.0  # YoY fall in NA drilling = demand cooling
 PRICE_HIGH_PCTILE = 60.0  # current price in upper part of its 12-mo range
 DOWNSIDE_TAIL_Q = 0.10  # worst-decile 3-mo move = the "bad quarter" analogue
 
+# Rig-regime scenario lever. For each regime, we report what guar price
+# ACTUALLY did over the next SCEN_HORIZON_M months in history when
+# drilling was in that regime — a descriptive empirical analogue, NOT a
+# forecast (the backtest forbids forecasts). Buckets by rig YoY %.
+SCEN_HORIZON_M = 6
+RIG_REGIMES = (
+    ("Drilling collapse (YoY ≤ -25%)", -25.0),
+    ("Drilling cooling (YoY -25% to -8%)", -8.0),
+    ("Drilling steady/up (YoY > -8%)", float("inf")),
+)
+SCEN_MIN_OBS = 4  # don't report a regime backed by < 4 historical windows
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-7s  %(name)s  %(message)s",
@@ -105,6 +117,7 @@ class HedgeSignal:
     reason: str
     price_direction_label: str = PRICE_DIRECTION_LABEL
     backtest_evidence: str = BACKTEST_EVIDENCE
+    scenarios: list = field(default_factory=list)
 
     def log(self) -> None:
         log.info("=" * 70)
@@ -133,6 +146,72 @@ class HedgeSignal:
             self.downside_usd_per_kg,
         )
         log.info("  why: %s", self.reason)
+        if self.scenarios:
+            log.info(
+                "  --- rig-regime scenarios (historical analogue, not a forecast) ---"
+            )
+            for sc in self.scenarios:
+                log.info(
+                    "  %-38s n=%-3d worst-decile -%.1f%%  (median %+.1f%%)  "
+                    "≈ $%.3f/kg",
+                    sc["regime"],
+                    sc["n_windows"],
+                    sc["hist_adverse_drawdown_pct"],
+                    sc["hist_median_move_pct"],
+                    sc["downside_usd_per_kg"],
+                )
+
+
+def _rig_yoy_at(rig: pd.Series, ts: pd.Timestamp) -> float:
+    """Year-on-year rig change at ts, look-ahead-safe via asof()."""
+    now = rig.asof(ts)
+    prev = rig.asof(ts - pd.DateOffset(months=12))
+    if pd.isna(now) or pd.isna(prev) or not prev:
+        return float("nan")
+    return (float(now) - float(prev)) / float(prev) * 100
+
+
+def _rig_regime_scenarios(
+    price_hist: pd.Series, rig: pd.Series, as_of: pd.Timestamp, current: float
+) -> list[dict]:
+    """Descriptive scenario lever. In the months ≤ as_of where US drilling
+    was in regime R, what did guar price actually do over the next
+    SCEN_HORIZON_M months? Reports the worst-decile (adverse) and median
+    forward move per regime. This is a historical *analogue*, NOT a
+    forecast — overlapping windows, small sample (both flagged). Uses only
+    data ≤ as_of."""
+    h = SCEN_HORIZON_M
+    rows = []
+    for t in price_hist.index:
+        t_h = t + pd.DateOffset(months=h)
+        if t_h > as_of or t_h not in price_hist.index:
+            continue
+        ry = _rig_yoy_at(rig, t)
+        if pd.isna(ry):
+            continue
+        rows.append((ry, price_hist.loc[t_h] / price_hist.loc[t] - 1.0))
+    if not rows:
+        return []
+    df = pd.DataFrame(rows, columns=["rig_yoy", "fwd"])
+    out: list[dict] = []
+    lo = -float("inf")
+    for label, hi in RIG_REGIMES:
+        bucket = df[(df["rig_yoy"] > lo) & (df["rig_yoy"] <= hi)]
+        lo = hi
+        if len(bucket) < SCEN_MIN_OBS:
+            continue
+        adverse = float(bucket["fwd"].quantile(DOWNSIDE_TAIL_Q))
+        adverse_pct = round(-min(adverse, 0.0) * 100, 1)  # positive = a drop
+        out.append(
+            {
+                "regime": label,
+                "n_windows": int(len(bucket)),
+                "hist_adverse_drawdown_pct": adverse_pct,
+                "hist_median_move_pct": round(float(bucket["fwd"].median()) * 100, 1),
+                "downside_usd_per_kg": round(current * adverse_pct / 100, 4),
+            }
+        )
+    return out
 
 
 def compute_hedge_signal(
@@ -176,6 +255,8 @@ def compute_hedge_signal(
     bad_quarter_pct = float(abs(chg3.quantile(DOWNSIDE_TAIL_Q)) * 100)
     downside_usd = round(current * bad_quarter_pct / 100, 4)
 
+    scenarios = _rig_regime_scenarios(p_hist, rig, as_of, current)
+
     if rig_yoy <= RIG_YOY_DROP_THRESHOLD_PCT:
         trigger = "LOCK_NOW"
         reason = (
@@ -208,6 +289,7 @@ def compute_hedge_signal(
         downside_usd_per_kg=downside_usd,
         trigger=trigger,
         reason=reason,
+        scenarios=scenarios,
     )
 
 
