@@ -1,5 +1,19 @@
 # Guar Export Decision Intelligence
 
+### ▶ Live app: **https://ca4enua2zdbbnteqxastgb.streamlit.app/**
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ca4enua2zdbbnteqxastgb.streamlit.app/)
+
+Two money decisions on every guar shipment, on data, in rupees:
+
+- **WHEN to sell** — forward-lock / hedge trigger (honest: it does *not* forecast price)
+- **WHERE to sell** — market choice + re-route uplift, with world-import headroom
+
+Built on UN Comtrade trade data — with the Oct-2021 source-quantity
+corruption flagged and repaired transparently, never hidden.
+
+---
+
 > **A decision tool for an Indian guar-gum exporter. It answers two
 > money questions — *when* to lock a forward contract and *where* to
 > sell — on free public data, in rupees, on your own tonnage. And it

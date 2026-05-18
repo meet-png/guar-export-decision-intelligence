@@ -1,5 +1,7 @@
 # Guar Export Decision Intelligence — Pilot Brief
 
+**▶ Try it live (no login):** https://ca4enua2zdbbnteqxastgb.streamlit.app/
+
 *One page. Hand this to the exporter. Numbers below are on a **sample**
 600 t/yr profile — in the pilot we replace them with **yours**.*
 
