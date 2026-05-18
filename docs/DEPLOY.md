@@ -11,16 +11,22 @@ deliberately **off** the deploy path (subprocess-tested).
 The repo is fully committed locally (clean tree). It has **no remote
 yet** — by design. Create one, then push `main`.
 
+Target: **public** repo named **`guar-export-decision-intelligence`**.
+
 **With the GitHub CLI (if installed):**
 ```bash
-gh repo create guar-export-advisor --public --source=. --remote=origin --push
+gh repo create guar-export-decision-intelligence --public --source=. --remote=origin --push
 ```
 
-**Without it — create an empty repo on github.com, then:**
+**Without it (gh is not installed here):** create an **empty** public
+repo named `guar-export-decision-intelligence` on github.com — no
+README/license/.gitignore (the repo must be empty or the first push is
+rejected). The `origin` remote is already wired locally, so then just:
 ```bash
-git remote add origin https://github.com/<you>/guar-export-advisor.git
 git push -u origin main
 ```
+(If your GitHub username is not `meet-png`, fix the remote first:
+`git remote set-url origin https://github.com/<you>/guar-export-decision-intelligence.git`)
 
 > Tip: from this Claude Code session you can run either as `! <command>`
 > so the output lands here. Do **not** add `.env` — it is gitignored and
