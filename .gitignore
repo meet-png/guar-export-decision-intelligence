@@ -107,3 +107,6 @@ htmlcov/
 # --- Great Expectations ---
 gx/uncommitted/
 great_expectations/uncommitted/
+
+# Local Claude Code agent config — never publish (local paths, not for a public repo)
+.claude/
