@@ -60,6 +60,25 @@ def test_pivot_score_and_shift_flag_well_formed(radar):
     assert len(ranked) < len(radar)
 
 
+def test_headroom_columns_present_and_strategic(radar):
+    """The 10x upgrade: the radar must carry world-import headroom and
+    reflect that the US is saturated while big markets are under-served."""
+    for c in ("world_import_usd", "india_share_of_market_pct", "addressable_usd"):
+        assert c in radar.columns
+    us = radar[radar["dest_iso"] == "USA"].iloc[0]
+    deu = radar[radar["dest_iso"] == "DEU"].iloc[0]
+    # India is heavily penetrated in the US, barely in Germany
+    assert us["india_share_of_market_pct"] > deu["india_share_of_market_pct"]
+    assert us["india_share_of_market_pct"] > 30
+    # the chosen top pivot must actually have measured headroom
+    top = (
+        radar[radar["pivot_score"].notna()]
+        .sort_values("pivot_score", ascending=False)
+        .iloc[0]
+    )
+    assert top["world_import_usd"] > 0
+
+
 def test_load_api_and_determinism():
     a = load_market_radar()
     b = build_market_radar().reset_index(drop=True)

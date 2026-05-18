@@ -53,12 +53,9 @@ KG_PER_TONNE = 1000
 # modest so the headline is credible, not a fantasy ceiling.
 DEFAULT_REROUTE_SHARE = 0.20
 
-# Re-route only to a market India ALREADY ships to materially. A high
-# momentum score on a tiny market (e.g. Nigeria at 0.1% share) is not a
-# defensible place to send 50+ tonnes — it has no proven absorptive
-# capacity and the exporter has no relationship there. Requiring an
-# existing real channel makes the rupee headline survive scrutiny.
-MIN_PIVOT_SHARE_PCT = 1.0
+# (Pivot credibility is now enforced by world-import headroom in
+# _pick_pivot — a big under-penetrated market that pays more than the US
+# — which is stronger than the old "already ships ≥1% of its book" floor.)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -159,21 +156,28 @@ def _realised_lookup(radar, national: float) -> dict:
 
 
 def _pick_pivot(radar, exclude_iso: set[str]):
-    """The credible re-route target: a market that (a) India already
-    ships to materially (proven absorptive capacity + an existing
-    relationship → low switching friction), (b) pays a real price
-    premium, and (c) is not the over-exposed US. Among those, take the
-    highest realised price — the ROI is about rupees per kg, so the
-    money differential, not raw momentum, decides."""
-    cand = radar[
-        radar["pivot_score"].notna()
-        & (radar["price_vs_portfolio_pct"] > 0)
-        & (radar["india_share_pct"] >= MIN_PIVOT_SHARE_PCT)
-        & (~radar["dest_iso"].isin(exclude_iso))
-    ].sort_values("realised_usd_per_kg", ascending=False)
+    """The credible re-route target. With world-import headroom now
+    available, the strategic pick is the market with the **highest
+    pivot_score** (which already blends headroom + price premium +
+    momentum + FTA) subject to hard guards: it must pay MORE than the US
+    (so the ₹ differential is real and positive), have measured world
+    headroom (not a data gap), and not be the over-exposed US or a market
+    the exporter is already in. pivot_score — not raw price alone — now
+    decides, so a huge under-penetrated market (e.g. France: $1.2B world,
+    India ~2%, $1.96/kg) beats a small high-price one."""
+
+    def _guarded(df):
+        return df[
+            df["pivot_score"].notna()
+            & (df["price_vs_portfolio_pct"] > 0)
+            & (df["world_import_usd"] > 0)
+            & (~df["dest_iso"].isin(exclude_iso))
+        ]
+
+    cand = _guarded(radar).sort_values("pivot_score", ascending=False)
     if cand.empty:
-        # Relaxed fallback: drop the materiality floor but never the
-        # positive-premium / not-US guards.
+        # Relaxed fallback: drop the world-data requirement but never the
+        # pays-more-than-US / not-US guards.
         cand = radar[
             radar["pivot_score"].notna()
             & (radar["price_vs_portfolio_pct"] > 0)

@@ -8,16 +8,21 @@ business actually is, what each destination actually pays, and where it
 is moving — facts, not predictions. That is exactly why it carries the
 product's analytical weight.
 
-The three buyer questions it answers (from the India-reporter spine)
---------------------------------------------------------------------
+The buyer questions it answers
+------------------------------
 1. **"How exposed am I?"** — India ships ~35% of its guar to the US,
-   which is now tariff-stressed. Concentration is quantified per market.
+   which is tariff-stressed *and* saturated: India already supplies
+   ~43% of total US guar imports, so there is little room to grow there.
 2. **"Which country pays me more?"** — realised $/kg differs ~2x across
-   destinations (Japan ≈ $2.75 vs Netherlands ≈ $1.29 for the same HS).
-   ``price_vs_portfolio_pct`` is the rupee-relevant headline.
-3. **"Where should I push as the US closes?"** — a transparent
-   ``pivot_score`` blending realised-price premium, recent momentum,
-   diversification value (away from the US), and FTA/tariff friendliness.
+   destinations (Japan ≈ $2.71 vs Netherlands ≈ $1.29 for the same HS).
+3. **"Where is the real untapped demand?"** — joins each market's
+   **total world guar imports** to India's flow → ``india_share_of_market``.
+   Germany buys $6B of guar from the world; India supplies ~4%. France
+   $1.2B at ~2%. *That* is headroom, quantified — not "a country India
+   happens to undership."
+4. **"Where should I push?"** — a transparent ``pivot_score`` blending
+   realised-price premium, **strategic headroom**, recent momentum, and
+   FTA/tariff friendliness.
 
 Recurring radar, not a one-shot report
 --------------------------------------
@@ -27,10 +32,13 @@ deliverable — re-runs flag a market turning before the exporter feels it.
 
 Honest limitations (carried, not hidden)
 ----------------------------------------
-* **India-reporter only.** This measures *India's* business per market
-  and the price India realises there. It does NOT yet have each market's
-  *total* world imports, so "India's share of that market / headroom" is
-  a roadmap dimension needing a Comtrade mirror pull — flagged, not faked.
+* **EU hub re-export.** Large hub importers (Germany, Netherlands,
+  Belgium) include heavy intra-EU and re-export flow, so their
+  world-import figure OVERSTATES true end-demand. Headroom is an
+  opportunity *indicator*, not a guaranteed addressable market — said,
+  not hidden. (Markets with no world-import pull score 0 on headroom,
+  never win by default; the radar still emits the columns so the
+  committed CSV schema is stable on a fresh clone.)
 * Realised price is the same lagged, mixed-grade Comtrade proxy as the
   spine (robust qty-weighted, ``is_outlier`` rows dropped).
 * ``fta_status`` is a small **curated, dated** reference, not a live
@@ -58,6 +66,7 @@ from src.features.guar_price import (
     _weighted_median,
     load_guar_price_series,
 )
+from src.features.headroom import load_world_imports
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR_DEFAULT = PROJECT_ROOT / "data" / "processed"
@@ -87,9 +96,9 @@ FTA_STATUS = {
 FTA_SCORE = {"FTA": 1.0, "MFN": 0.5, "UNKNOWN": 0.5, "TARIFF_STRESSED": 0.0}
 
 # pivot_score weights — documented, explainable, NOT fitted to anything.
-W_PRICE = 0.35  # realised-price premium vs the national portfolio
-W_MOMENTUM = 0.25  # recent 12-mo vs prior 12-mo direction
-W_DIVERSIFY = 0.20  # value of reducing single-market (US) dependence
+W_PRICE = 0.30  # realised-price premium vs the national portfolio
+W_HEADROOM = 0.30  # big WORLD market where India is under-penetrated
+W_MOMENTUM = 0.20  # recent 12-mo vs prior 12-mo direction
 W_FTA = 0.20  # tariff/FTA friendliness
 
 logging.basicConfig(
@@ -107,7 +116,9 @@ class RadarReport:
     n_destinations: int = 0
     n_ranked: int = 0
     us_share_pct: float = 0.0
+    us_share_of_market_pct: float = 0.0
     top_pivot: str = ""
+    top_headroom: str = ""
     n_surging: int = 0
     n_fading: int = 0
 
@@ -121,10 +132,12 @@ class RadarReport:
             self.n_ranked,
         )
         log.info(
-            "  US concentration        : %.1f%% of India's guar FOB  "
-            "(the exposure to diversify away from)",
+            "  US concentration        : %.1f%% of India's guar FOB; India "
+            "supplies %.0f%% of the US market (saturated, not just tariffed)",
             self.us_share_pct,
+            self.us_share_of_market_pct,
         )
+        log.info("  biggest untapped market : %s", self.top_headroom)
         log.info("  top pivot target        : %s", self.top_pivot)
         log.info(
             "  shift alerts            : %d surging, %d fading",
@@ -205,6 +218,32 @@ def build_market_radar(
     radar = pd.DataFrame(rows)
     report.n_destinations = len(radar)
 
+    # --- Strategic headroom -------------------------------------------------
+    # Each market's TOTAL guar imports from the world, and how little of
+    # that India currently supplies. A large market with a low India share
+    # = real, quantified untapped opportunity — far stronger than the old
+    # proxy of "thin in India's own book". Degrades gracefully if the
+    # world-import raw pulls are absent (columns still emitted → the
+    # committed CSV schema stays stable on a fresh clone).
+    #
+    # Honest caveat: large EU hub importers (Germany, Netherlands, Belgium)
+    # include heavy intra-EU / re-export flow, so their world-import figure
+    # OVERSTATES true end-demand. Headroom is an opportunity *indicator*,
+    # not a guaranteed addressable market — stated, not hidden.
+    world = load_world_imports(hs_code=hs)
+    radar = radar.merge(world, on="dest_iso", how="left")
+    radar["india_share_of_market_pct"] = np.where(
+        radar["world_import_usd"] > 0,
+        (radar["total_fob_usd"] / radar["world_import_usd"] * 100).clip(upper=100),
+        np.nan,
+    ).round(1)
+    radar["addressable_usd"] = np.where(
+        radar["world_import_usd"] > 0,
+        radar["world_import_usd"]
+        * (1 - radar["india_share_of_market_pct"].fillna(0) / 100),
+        np.nan,
+    ).round(2)
+
     eligible = (radar["total_fob_usd"] >= MIN_TOTAL_FOB_USD) & (
         radar["n_active_months"] >= MIN_ACTIVE_MONTHS
     )
@@ -215,14 +254,18 @@ def build_market_radar(
     # across the eligible set, then a documented weighted sum.
     price_n = _pctrank(r["price_vs_portfolio_pct"])
     mom_n = _pctrank(r["recent_shift_pct"].fillna(r["recent_shift_pct"].min()))
-    # diversification value: reward markets that are NOT the dominant one;
-    # smaller existing share = more diversification headroom for the
-    # exporter (and the US, the dominant one, scores 0 here by design).
-    divers_n = 1.0 - _pctrank(r["india_share_pct"])
+    # Strategic headroom: rank by addressable space = big world market ×
+    # low India penetration. Markets with no world-import data score 0
+    # here rather than win by default (US scores low: India already
+    # supplies ~43% of it — saturated, not just tariffed).
+    headroom_n = _pctrank(r["addressable_usd"].fillna(0.0))
     fta_n = r["fta_status"].map(FTA_SCORE).astype(float)
 
     r["pivot_score"] = (
-        W_PRICE * price_n + W_MOMENTUM * mom_n + W_DIVERSIFY * divers_n + W_FTA * fta_n
+        W_PRICE * price_n
+        + W_HEADROOM * headroom_n
+        + W_MOMENTUM * mom_n
+        + W_FTA * fta_n
     ) * 100
     r["pivot_score"] = r["pivot_score"].round(1)
     r["shift_flag"] = np.select(
@@ -238,7 +281,20 @@ def build_market_radar(
 
     report.portfolio_usd_per_kg = round(portfolio_price, 4)
     us = out[out["dest_iso"] == "USA"]
-    report.us_share_pct = float(us["india_share_pct"].iloc[0]) if len(us) else 0.0
+    if len(us):
+        report.us_share_pct = float(us["india_share_pct"].iloc[0])
+        report.us_share_of_market_pct = float(
+            us["india_share_of_market_pct"].fillna(0).iloc[0]
+        )
+    hr = out[out["addressable_usd"].notna()].sort_values(
+        "addressable_usd", ascending=False
+    )
+    report.top_headroom = (
+        f"{hr.iloc[0]['dest_country']} (world ${hr.iloc[0]['world_import_usd'] / 1e9:.1f}B, "
+        f"India only {hr.iloc[0]['india_share_of_market_pct']:.1f}%)"
+        if len(hr)
+        else "—"
+    )
     ranked = out[out["pivot_score"].notna()]
     report.top_pivot = (
         f"{ranked.iloc[0]['dest_country']} "
@@ -257,7 +313,13 @@ def load_market_radar(
 ) -> pd.DataFrame:
     """Importable API for the dashboard / pilot brief."""
     out_path = processed_dir / OUT_NAME
-    required = {"dest_iso", "pivot_score", "price_vs_portfolio_pct"}
+    required = {
+        "dest_iso",
+        "pivot_score",
+        "price_vs_portfolio_pct",
+        "world_import_usd",
+        "india_share_of_market_pct",
+    }
     stale = out_path.exists() and not required.issubset(
         set(pd.read_csv(out_path, nrows=0).columns)
     )
