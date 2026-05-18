@@ -39,14 +39,15 @@ def test_assemble_view_is_complete():
     # warnings (a one-way sort used to bury every fading market).
     assert set(v.shifts["shift_flag"]) <= {"SURGING", "FADING"}
     assert {"SURGING", "FADING"} <= set(v.shifts["shift_flag"])
-    # a surging market shown must be actionable — paying above India's
-    # average (a fast-growing market that pays less is not an
-    # opportunity); FADING is a warning at any price, so not guarded.
+    # a surging market shown must be actionable — paying strictly more
+    # than the USA, the exporter's current market (a fast-growing market
+    # that pays the same or less is no opportunity); FADING is a warning
+    # at any price, so it is not guarded.
     surging_names = set(
         v.shifts.loc[v.shifts["shift_flag"] == "SURGING", "dest_country"]
     )
     guarded = v.radar[v.radar["dest_country"].isin(surging_names)]
-    assert (guarded["price_vs_portfolio_pct"] > 0).all()
+    assert (guarded["realised_usd_per_kg"] > v.roi.us_realised_usd_per_kg).all()
     # the rig-regime scenario lever is carried to the screen
     assert v.sig.scenarios and all(
         "regime" in s and "hist_adverse_drawdown_pct" in s for s in v.sig.scenarios

@@ -96,15 +96,16 @@ def assemble_view(
         "recent_shift_pct",
         "shift_flag",
     ]
-    # Surging only counts if it is actionable: a fast-growing market that
-    # still pays below India's average realisation is not a re-route
-    # opportunity (Greece grows +76% but pays 36% below average). Same
-    # price guard _pick_pivot uses. FADING stays unfiltered — a shrinking
-    # market you already sell to is a warning at any price.
+    # A surging market is only actionable if it pays MORE than the USA —
+    # the exporter's current market. Growth into a market that pays the
+    # same or less is no opportunity (Iraq/Guatemala ≈ ₹137 ≤ USA ₹138
+    # drop out). Threshold is the LIVE USA realised price, not a
+    # hardcode. FADING stays unfiltered — a shrinking market you already
+    # sell to is a warning at any price.
     surging = (
         ranked[
             (ranked["shift_flag"] == "SURGING")
-            & (ranked["price_vs_portfolio_pct"] > 0)
+            & (ranked["realised_usd_per_kg"] > roi.us_realised_usd_per_kg)
         ]
         .sort_values("recent_shift_pct", ascending=False)
         .head(7)
@@ -154,7 +155,7 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
     us_share_pct = st.sidebar.slider(
         "About how much of it goes to the USA?",
         0,
-        90,
+        100,
         45,
         5,
         format="%d%%",
@@ -162,7 +163,7 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
     reroute_pct = st.sidebar.slider(
         "How much of that US volume would you try selling elsewhere?",
         0,
-        50,
+        100,
         20,
         5,
         format="%d%%",
@@ -184,8 +185,38 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
         "yours, in rupees."
     )
 
-    # ---- The one thing to do first -----------------------------------
-    st.success(f"### ✅ Do this first\n\n**{v.move.headline}**\n\n{v.move.why}")
+    # ---- The one thing to do first (driven by the re-route slider) ---
+    pivot = v.roi.pivot_country
+    uplift_usd_kg = max(
+        0.0, v.roi.pivot_realised_usd_per_kg - v.roi.us_realised_usd_per_kg
+    )
+    us_kg = (us_share_pct / 100.0) * tonnes * 1000.0
+    per_pct_inr = uplift_usd_kg * us_kg * 0.01 * fx  # ₹/yr per +1% re-route
+    if reroute_pct == 0:
+        first_head = f"Start shifting volume off the US to {pivot}"
+        first_why = (
+            f"{pivot} pays "
+            f"**{rs_per_kg(v.roi.pivot_realised_usd_per_kg, fx)}** vs the "
+            f"USA's {rs_per_kg(v.roi.us_realised_usd_per_kg, fx)} for the "
+            "same guar. Move the re-route slider and watch the rupee gain "
+            "build."
+        )
+    elif reroute_pct <= 30:
+        first_head = "You've started re-routing — keep going"
+        first_why = (
+            f"Every extra **1%** of US volume moved to {pivot} adds ≈ "
+            f"**{inr(per_pct_inr)}/yr**. At {reroute_pct}% so far that is "
+            f"≈ {inr(v.roi.reroute_uplift_inr_year)}/yr."
+        )
+    else:
+        first_head = "You're re-routing well — lock the gains in"
+        first_why = (
+            f"At {reroute_pct}% you've unlocked ≈ "
+            f"**{inr(v.roi.reroute_uplift_inr_year)}/yr**. Make sure your "
+            f"forward contracts actually reflect the {pivot} volume so the "
+            "gain is secured, not just on paper."
+        )
+    st.success(f"### ✅ Do this first\n\n**{first_head}**\n\n{first_why}")
 
     # ---- Plain straight talk (the honesty, no jargon) ----------------
     st.warning(
@@ -228,12 +259,25 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
                 "bad patch could put at risk — keep watching this."
             )
     with c3:
+        nat = v.us_share_pct  # India's average exporter ≈ 35%
+        if us_share_pct > nat:
+            body = (
+                f"You send **{us_share_pct}%** of your guar to the USA. "
+                f"India's average exporter sends ~{nat:.0f}%. You are far "
+                "more exposed than typical — and new US tariffs make that "
+                "concentration riskier."
+            )
+        else:
+            body = (
+                f"You send **{us_share_pct}%** of your guar to the USA — "
+                f"around or below India's ~{nat:.0f}% average, so "
+                "relatively diversified. New US tariffs still make any US "
+                "reliance worth trimming."
+            )
         st.warning(
-            "**⚠️ Be careful — too dependent on the USA**\n\n"
-            f"**{v.us_share_pct:.0f}%** of India's guar goes to the USA. "
-            "India already supplies a big share of everything the US buys, "
-            "so there's little room to grow there — plus new US tariffs.\n\n"
-            "Selling to more countries lowers this risk."
+            "**⚠️ Be careful — US concentration**\n\n"
+            + body
+            + "\n\nSelling to more countries lowers this risk."
         )
 
     total = v.roi.reroute_uplift_inr_year + v.roi.downside_inr_year
@@ -377,10 +421,10 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
             hide_index=True,
         )
         st.caption(
-            "Growing markets that **pay above India's average** — real "
+            "Growing markets that **pay more than the USA** — real "
             "re-route candidates, not just any rising market (one paying "
-            "less than you already get is not an opportunity). Shrinking "
-            "ones are early warnings on business you already have."
+            "the same or less than you already get is no opportunity). "
+            "Shrinking ones are early warnings on business you have."
         )
 
     # ---- All the technical proof, collapsed by default ---------------
