@@ -50,15 +50,38 @@ git push -u origin main
 - The price chart shows the red ✕ on the repaired Oct-2021 month.
 - Put the live URL in the README badge and the pilot brief.
 
-## Updating a deployed app
+## Does it auto-update? (be precise — two separate things)
 
-`git push` to `main` → Streamlit Cloud auto-redeploys. If the spine or
-radar logic changes, regenerate and commit the CSVs first:
+1. **App code** — Streamlit Community Cloud watches `main` and
+   **auto-redeploys on every push**. Automatic, nothing to do.
+2. **The numbers** — refreshed by `.github/workflows/monthly-refresh.yml`
+   (1st of each month + manual *Run workflow*). It re-pulls Comtrade,
+   rebuilds the spine + radar, runs the **FR-2 validation gate**, and —
+   crucially — **commits the refreshed CSVs back**, which triggers (1).
+   Without that commit-back the dashboard would silently freeze.
+
+   Cadence is **monthly, not weekly**, on purpose: UN Comtrade lags
+   6–18 months, so weekly would just be identical-data churn.
+
+### One optional secret (else it runs degraded but safe)
+
+For the scheduled refresh to pull fresh data, add the Comtrade key to
+the **v2 repo**: GitHub → Settings → Secrets and variables → Actions →
+*New repository secret* → `COMTRADE_API_KEY` = your key. (Optional:
+`USD_INR_RATE`.) **If you skip this**, the workflow does not fail — it
+logs a warning, reuses the committed data, still runs the validation
+gate, and commits nothing. The dashboard simply stays at the last good
+snapshot. Nothing breaks; it just won't self-refresh until the secret
+exists.
+
+## Manual refresh (any time)
 
 ```bash
+python -m src.ingest.comtrade_world_imports     # if you want fresh headroom
 python -m src.features.guar_price
 python -m src.features.market_radar
-git add data/processed/guar_price_monthly.csv data/processed/market_radar.csv
-git commit -m "data: refresh spine + radar"
-git push
+python -m src.validate_product                  # FR-2 gate — must pass
+git add data/processed/guar_price_monthly.csv data/processed/market_radar.csv data/processed/product_validation_report.json
+git commit -m "data: manual refresh"
+git push                                        # Streamlit Cloud redeploys
 ```
