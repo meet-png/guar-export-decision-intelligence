@@ -93,6 +93,15 @@ log = logging.getLogger("price_forecast")
 # ---------------------------------------------------------------------------
 
 
+def rig_monthly() -> pd.Series:
+    """Baker Hughes NA rig count, weekly → monthly mean. The single source
+    of truth for 'rig count by month' — both the model (lagged) and the
+    hedge signal (as-of) consume this, never two different derivations."""
+    rig = pd.read_csv(RIG_CSV, parse_dates=["week_start_date"])
+    rig["month"] = rig["week_start_date"].dt.to_period("M").dt.to_timestamp()
+    return rig.groupby("month")["rig_count"].mean().sort_index()
+
+
 def load_operational_exog(index: pd.DatetimeIndex) -> pd.DataFrame:
     """Monthly exog aligned to ``index``, lagged so every value is one an
     exporter would actually know on the first of that month.
@@ -102,9 +111,7 @@ def load_operational_exog(index: pd.DatetimeIndex) -> pd.DataFrame:
     * ``monsoon_prev_year`` — Rajasthan LPA%, the previous calendar
       year's figure (the only monsoon fully known during the year).
     """
-    rig = pd.read_csv(RIG_CSV, parse_dates=["week_start_date"])
-    rig["month"] = rig["week_start_date"].dt.to_period("M").dt.to_timestamp()
-    rig_m = rig.groupby("month")["rig_count"].mean()
+    rig_m = rig_monthly()
     rig_prev = rig_m.reindex(index).ffill().bfill().shift(1)
 
     mon = pd.read_csv(MONSOON_CSV)
