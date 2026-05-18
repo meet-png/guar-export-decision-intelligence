@@ -32,6 +32,10 @@ def test_assemble_view_is_complete():
     assert prem == sorted(prem, reverse=True)
     assert "insufficient edge" in v.sig.price_direction_label
     assert set(v.shifts["shift_flag"]) <= {"SURGING", "FADING"}
+    # the rig-regime scenario lever is carried to the screen
+    assert v.sig.scenarios and all(
+        "regime" in s and "hist_adverse_drawdown_pct" in s for s in v.sig.scenarios
+    )
 
 
 def test_inr_formatting_lakh_and_crore():

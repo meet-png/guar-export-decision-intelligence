@@ -192,6 +192,37 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
             f"→ ≈ **{inr(v.roi.downside_inr_year)}/yr** at risk on your volume"
         )
         st.info(v.sig.reason)
+        if v.sig.scenarios:
+            st.caption(
+                "**If drilling shifts** — what guar price *actually did* "
+                "over the next 6 months historically (analogue, not a "
+                "forecast; n = sample windows):"
+            )
+            sc = pd.DataFrame(v.sig.scenarios)
+            sc = sc.assign(
+                **{
+                    "Drilling regime": sc["regime"],
+                    "n": sc["n_windows"],
+                    "Worst-decile move": sc["hist_adverse_drawdown_pct"].map(
+                        lambda x: f"-{x:.1f}%"
+                    ),
+                    "Median move": sc["hist_median_move_pct"].map(
+                        lambda x: f"{x:+.1f}%"
+                    ),
+                    "≈ at risk $/kg": sc["downside_usd_per_kg"].map(
+                        lambda x: f"${x:.3f}"
+                    ),
+                }
+            )[
+                [
+                    "Drilling regime",
+                    "n",
+                    "Worst-decile move",
+                    "Median move",
+                    "≈ at risk $/kg",
+                ]
+            ]
+            st.dataframe(sc, use_container_width=True, hide_index=True)
 
     with right:
         st.subheader("WHERE — which market pays more?")
