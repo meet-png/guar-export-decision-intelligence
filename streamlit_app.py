@@ -221,6 +221,45 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
         "This turns them into numbers."
     )
 
+    # ---- The chart that DOES move with the volume sliders ------------
+    st.markdown("### 💸 What it's worth on *your* volume")
+    st.caption(
+        "Move the three sliders on the left — **this chart moves with "
+        "them.** (The market charts further down show prices *across "
+        "countries*; those only change with the exchange rate, not with "
+        "how much you export — that is correct, not a bug.)"
+    )
+    impact = pd.DataFrame(
+        {
+            "what": [
+                "Loss you can protect / yr  (WHEN)",
+                "Extra you can earn / yr  (WHERE)",
+            ],
+            "rs": [
+                v.roi.downside_inr_year,
+                v.roi.reroute_uplift_inr_year,
+            ],
+        }
+    )
+    fig_money = go.Figure(
+        go.Bar(
+            x=impact["rs"],
+            y=impact["what"],
+            orientation="h",
+            marker_color=["#e76f51", "#2a9d8f"],
+            text=[inr(x) for x in impact["rs"]],
+            textposition="outside",
+        )
+    )
+    fig_money.update_layout(
+        height=240,
+        xaxis_title="₹ per year, on the business set by your sliders",
+        yaxis=dict(autorange="reversed"),
+        xaxis=dict(range=[0, float(impact["rs"].max()) * 1.3]),
+        margin=dict(l=10, r=10, t=10, b=10),
+    )
+    st.plotly_chart(fig_money, use_container_width=True)
+
     st.markdown("---")
 
     # ---- Which countries pay the most (in ₹/kg) ----------------------
