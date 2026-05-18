@@ -10,11 +10,9 @@
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ca4enua2zdbbnteqxastgb.streamlit.app/)
 &nbsp;·&nbsp; 49 tests green &nbsp;·&nbsp; FR-2 validation gate 19/19 &nbsp;·&nbsp; honest no-look-ahead backtest
 
-<!-- SCREENSHOT SLOT — add docs/img/app-hero.png (and/or app.gif), then
-     delete the two comment markers around the next line. See
-     docs/img/CAPTURE.md for exactly what to capture.
 [![Guar Export Decision Intelligence — live dashboard](docs/img/app.gif)](https://ca4enua2zdbbnteqxastgb.streamlit.app/)
--->
+
+<sub>▶ click the image to open the live app · static view: [`docs/img/app-hero.png`](docs/img/app-hero.png)</sub>
 
 > ⚙️ A product-direction fork of **JEIS v1** (a portfolio analytics
 > project), kept frozen and entirely separate — its own GitHub repo, its
