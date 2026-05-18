@@ -1,12 +1,10 @@
 """Guar Export Decision Intelligence — the one-screen product.
 
-A single decision screen for a guar exporter:
-
-  * WHEN  — should I lock a forward contract now? (honest risk trigger;
-            we openly do NOT forecast price)
-  * WHERE — I'm over-exposed to the US; which market pays more and is
-            growing?
-  * ₹     — what is that worth on MY tonnage?
+Written for the person who pays: a guar exporter, not an analyst. Plain
+business language, rupees first, framed as *earn more / lose less / be
+careful*. Every technical term, statistic and limitation lives in one
+collapsible "How sure are we?" section so credibility is preserved
+without burdening the exporter.
 
 The UI is a thin view over the tested ``src`` modules — no analytics are
 re-implemented here, so the screen can never disagree with the engine.
@@ -101,34 +99,38 @@ def assemble_view(
 def inr(amount: float) -> str:
     """Indian-format a rupee amount: crore above 1cr, else lakh."""
     if abs(amount) >= 1e7:
-        return f"₹{amount / 1e7:,.2f} Cr"
-    return f"₹{amount / 1e5:,.1f} L"
+        return f"₹{amount / 1e7:,.2f} crore"
+    return f"₹{amount / 1e5:,.1f} lakh"
+
+
+def rs_per_kg(usd: float, fx: float) -> str:
+    """$/kg → a plain ₹/kg the exporter actually thinks in."""
+    return f"₹{usd * fx:,.0f}/kg"
 
 
 # ---------------------------------------------------------------------------
-# Streamlit screen
+# Streamlit screen — written for the exporter, not the analyst
 # ---------------------------------------------------------------------------
 
 
 def main() -> None:  # pragma: no cover - exercised via `streamlit run`
     st.set_page_config(
-        page_title="Guar Export Decision Intelligence",
+        page_title="Guar Export — earn more, lose less",
         page_icon="🌱",
         layout="wide",
         initial_sidebar_state="expanded",
     )
 
-    st.sidebar.title("🌱 Guar Export Decision Intelligence")
-    st.sidebar.caption("WHEN to sell · WHERE to sell — in your rupees")
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Your business")
+    # ---- Sidebar: "tell us about your business", in plain words --------
+    st.sidebar.title("🌱 Your guar export business")
     st.sidebar.caption(
-        "**Simulated** for the demo. In a pilot these are *your* real "
-        "numbers — nothing else about the product changes."
+        "Move these to match your business — everything below updates " "instantly."
     )
-    tonnes = st.sidebar.slider("Annual guar volume (tonnes)", 100, 3000, 600, 50)
+    tonnes = st.sidebar.slider(
+        "How many tonnes of guar do you export per year?", 100, 3000, 600, 50
+    )
     us_share = st.sidebar.slider(
-        "Share of volume going to the US",
+        "About how much of it goes to the USA?",
         0.0,
         0.9,
         0.45,
@@ -136,148 +138,131 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
         format="%.0f%%",
     )
     reroute = st.sidebar.slider(
-        "US volume you'd test re-routing", 0.0, 0.5, 0.20, 0.05, format="%.0f%%"
+        "How much of that US volume would you try selling elsewhere?",
+        0.0,
+        0.5,
+        0.20,
+        0.05,
+        format="%.0f%%",
     )
-    fx = st.sidebar.number_input("FX assumption (₹ per $1)", 75.0, 95.0, 83.0, 0.5)
+    fx = st.sidebar.number_input("Exchange rate (₹ for $1)", 75.0, 95.0, 83.0, 0.5)
     st.sidebar.markdown("---")
-    st.sidebar.info(
-        "**Data:** UN Comtrade (India guar exports 2019–2024) + Baker "
-        "Hughes rig count + IMD monsoon — free public sources only.\n\n"
-        "**Honesty:** trade data lags 6–18 months; figures are decision-"
-        "framing, not booked. Every assumption is shown, not hidden."
-    )
     st.sidebar.caption(
-        f"runtime: plotly {plotly.__version__} · streamlit {st.__version__}"
+        "Built only on **free public trade data** + US oil-drilling "
+        "activity. The business shown is an example — in a real review we "
+        "use *your* figures. This is decision guidance, not a guarantee."
     )
 
     v = assemble_view(tonnes, us_share, reroute, fx)
 
-    st.title("Two money decisions on every guar shipment")
+    st.title("Guar export: what to do to earn more and lose less")
     st.markdown(
-        "You decide *when* to sell and *where* to sell — today on gut. "
-        "Here is each, on data, in your rupees."
+        "Every shipment is two money decisions — **when to sell** and "
+        "**where to sell**. Here is what the public trade data says about "
+        "yours, in rupees."
     )
 
-    # The decisive lead — one synthesised move, read this first.
-    st.success(f"### ➤ Your #1 move\n**{v.move.headline}**\n\n{v.move.why}")
+    # ---- The one thing to do first -----------------------------------
+    st.success(f"### ✅ Do this first\n\n**{v.move.headline}**\n\n{v.move.why}")
 
-    # The integrity statement — shown immediately after, never buried.
-    st.warning(f"**{v.sig.price_direction_label}**  ·  {v.sig.backtest_evidence}")
-    st.caption(v.move.caveat)
+    # ---- Plain straight talk (the honesty, no jargon) ----------------
+    st.warning(
+        "**Straight talk:** nobody can reliably predict the guar price — "
+        "and we will not pretend to. Instead we tell you *when the risk of "
+        "a price fall is high*, so you can lock a deal in time. We tested "
+        "this honestly — the proof is in **“How sure are we?”** at the "
+        "bottom."
+    )
 
-    a, b, c = st.columns(3)
-    a.metric(
-        "WHEN — downside at risk / yr",
-        inr(v.roi.downside_inr_year),
-        f"trigger: {v.roi.when_trigger}",
-        delta_color="off",
-    )
-    b.metric(
-        "WHERE — re-route uplift / yr",
-        inr(v.roi.reroute_uplift_inr_year),
-        f"{reroute * 100:.0f}% of US vol → {v.roi.pivot_country}",
-    )
-    c.metric(
-        "US concentration",
-        f"{v.us_share_pct:.1f}%",
-        "of India's guar FOB — the exposure",
-        delta_color="off",
+    # ---- Earn more / Lose less / Be careful --------------------------
+    st.markdown("### What this means for your business")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.success(
+            "**💰 Earn more — sell where you're paid better**\n\n"
+            f"The USA pays you about **{rs_per_kg(v.roi.us_realised_usd_per_kg, fx)}**. "
+            f"**{v.roi.pivot_country}** pays about "
+            f"**{rs_per_kg(v.roi.pivot_realised_usd_per_kg, fx)}** for the "
+            "same guar.\n\n"
+            f"Moving {reroute * 100:.0f}% of your US sales there ≈ "
+            f"**{inr(v.roi.reroute_uplift_inr_year)} extra per year**."
+        )
+    with c2:
+        if v.sig.trigger == "LOCK_NOW":
+            st.error(
+                "**🛡️ Lose less — act now**\n\n"
+                "US oil drilling (guar's single biggest use — fracking) has "
+                "slowed sharply. Every time that happened before, guar "
+                "prices tended to fall in the months after.\n\n"
+                f"Locking a forward price now protects ≈ "
+                f"**{inr(v.roi.downside_inr_year)} a year** of your money."
+            )
+        else:
+            st.info(
+                "**🛡️ Lose less — no rush this month**\n\n"
+                "US oil drilling is steady, so there's no unusual "
+                "price-fall danger right now.\n\n"
+                f"But ≈ **{inr(v.roi.downside_inr_year)} a year** is what a "
+                "bad patch could put at risk — keep watching this."
+            )
+    with c3:
+        st.warning(
+            "**⚠️ Be careful — too dependent on the USA**\n\n"
+            f"**{v.us_share_pct:.0f}%** of India's guar goes to the USA. "
+            "India already supplies a big share of everything the US buys, "
+            "so there's little room to grow there — plus new US tariffs.\n\n"
+            "Selling to more countries lowers this risk."
+        )
+
+    total = v.roi.reroute_uplift_inr_year + v.roi.downside_inr_year
+    st.markdown(
+        f"#### Bottom line: about **{inr(total)} a year** on your volume "
+        "rides on these two decisions — today you make them on gut feel. "
+        "This turns them into numbers."
     )
 
     st.markdown("---")
-    left, right = st.columns(2)
 
-    with left:
-        st.subheader("WHEN — lock a forward, or hold?")
-        badge = "🔴 LOCK NOW" if v.sig.trigger == "LOCK_NOW" else "🟢 NO TRIGGER"
-        st.markdown(f"### {badge}")
-        st.markdown(
-            f"- US rig count **{v.sig.rig_level:,.0f}** "
-            f"(**{v.sig.rig_yoy_change_pct:+.1f}%** year-on-year)\n"
-            f"- Current price **${v.sig.current_price_usd_per_kg:.3f}/kg** "
-            f"({v.sig.price_pctile_12m:.0f}%ile of last 12 mo)\n"
-            f"- Bad-quarter analogue **−{v.sig.hist_bad_quarter_pct:.1f}%** "
-            f"→ ≈ **{inr(v.roi.downside_inr_year)}/yr** at risk on your volume"
+    # ---- Which countries pay the most (in ₹/kg) ----------------------
+    st.subheader("Which countries pay the most for your guar")
+    prem = v.top_premium.copy()
+    prem["rs"] = prem["realised_usd_per_kg"] * fx
+    fig = go.Figure(
+        go.Bar(
+            x=prem["rs"],
+            y=prem["dest_country"],
+            orientation="h",
+            marker_color=[
+                "#e76f51" if c == "USA" else "#2a9d8f" for c in prem["dest_country"]
+            ],
+            text=[f"₹{x:,.0f}" for x in prem["rs"]],
+            textposition="outside",
         )
-        st.info(v.sig.reason)
-        if v.sig.scenarios:
-            st.caption(
-                "**If drilling shifts** — what guar price *actually did* "
-                "over the next 6 months historically (analogue, not a "
-                "forecast; n = sample windows):"
-            )
-            sc = pd.DataFrame(v.sig.scenarios)
-            sc = sc.assign(
-                **{
-                    "Drilling regime": sc["regime"],
-                    "n": sc["n_windows"],
-                    "Worst-decile move": sc["hist_adverse_drawdown_pct"].map(
-                        lambda x: f"-{x:.1f}%"
-                    ),
-                    "Median move": sc["hist_median_move_pct"].map(
-                        lambda x: f"{x:+.1f}%"
-                    ),
-                    "≈ at risk $/kg": sc["downside_usd_per_kg"].map(
-                        lambda x: f"${x:.3f}"
-                    ),
-                }
-            )[
-                [
-                    "Drilling regime",
-                    "n",
-                    "Worst-decile move",
-                    "Median move",
-                    "≈ at risk $/kg",
-                ]
-            ]
-            st.dataframe(sc, use_container_width=True, hide_index=True)
+    )
+    fig.update_layout(
+        title="₹ per kg, by country (your main market — the USA — in orange)",
+        height=380,
+        yaxis=dict(autorange="reversed"),
+        xaxis_title="₹ per kg",
+        margin=dict(l=10, r=10, t=40, b=10),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        "Longer bar = that country pays more per kg for the same guar. "
+        "You mostly sell to the USA (orange) — several countries clearly "
+        "pay more."
+    )
 
-    with right:
-        st.subheader("WHERE — which market pays more?")
-        st.markdown(
-            f"You send **{v.us_share_pct:.0f}%** of India's guar to the US "
-            f"(${v.roi.us_realised_usd_per_kg:.2f}/kg). Re-routing "
-            f"**{reroute * 100:.0f}%** of your US volume to "
-            f"**{v.roi.pivot_country}** "
-            f"(${v.roi.pivot_realised_usd_per_kg:.2f}/kg) ≈ "
-            f"**{inr(v.roi.reroute_uplift_inr_year)}/yr**."
-        )
-        prem = v.top_premium.copy()
-        fig = go.Figure(
-            go.Bar(
-                x=prem["realised_usd_per_kg"],
-                y=prem["dest_country"],
-                orientation="h",
-                marker_color=[
-                    "#e76f51" if c == "USA" else "#2a9d8f" for c in prem["dest_country"]
-                ],
-                text=[f"${x:.2f}" for x in prem["realised_usd_per_kg"]],
-                textposition="outside",
-            )
-        )
-        fig.add_vline(
-            x=v.roi.current_blended_usd_per_kg,
-            line_dash="dot",
-            line_color="gray",
-            annotation_text="your blended",
-        )
-        fig.update_layout(
-            title="Realised $/kg — top-paying markets",
-            height=360,
-            yaxis=dict(autorange="reversed"),
-            margin=dict(l=10, r=10, t=40, b=10),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("Price spine — and the data we repaired in the open")
+    # ---- Price over the years (with the corrected month explained) ---
+    st.subheader("Guar price over the years")
     sp = v.spine.copy()
+    sp["rs"] = sp["price_usd_per_kg"] * fx
     fig2 = go.Figure()
     fig2.add_trace(
         go.Scatter(
             x=sp["period"],
-            y=sp["price_usd_per_kg"],
-            name="Guar price ($/kg, used)",
+            y=sp["rs"],
+            name="Guar price (₹/kg)",
             line=dict(color="#264653", width=2),
         )
     )
@@ -286,66 +271,110 @@ def main() -> None:  # pragma: no cover - exercised via `streamlit run`
         fig2.add_trace(
             go.Scatter(
                 x=imp["period"],
-                y=imp["price_usd_per_kg"],
-                name="Repaired month (corrupt source)",
+                y=imp["rs"],
+                name="One month we corrected",
                 mode="markers",
-                marker=dict(color="#e76f51", size=11, symbol="x"),
+                marker=dict(color="#e76f51", size=12, symbol="x"),
             )
         )
     fig2.update_layout(
-        height=340,
-        yaxis_title="USD / kg",
+        height=320,
+        yaxis_title="₹ per kg",
         hovermode="x unified",
         margin=dict(l=10, r=10, t=10, b=10),
     )
     st.plotly_chart(fig2, use_container_width=True)
     st.caption(
-        "The red ✕ is a month whose source quantity was corrupt (Oct-2021, "
-        "printed ~$7/kg). We flag and interpolate it transparently and keep "
-        "the raw value in an audit column — we never feed a known lie to the "
-        "model. That visible honesty *is* the product."
+        "One month (Oct 2021) had a clearly wrong figure in the public "
+        "data — it showed roughly 4× the real price. We caught it, marked "
+        "it (✕) and corrected it. We don't hide bad data; we fix it in "
+        "the open."
     )
 
+    # ---- Markets to watch (plain) ------------------------------------
     if len(v.shifts):
-        st.subheader("Radar — markets turning (the recurring monitor)")
+        st.subheader("Markets to watch")
+        w = v.shifts.copy()
+        w["You sell there"] = w["india_share_pct"].map(lambda x: f"{x:.1f}%")
+        w["They pay"] = (w["realised_usd_per_kg"] * fx).map(lambda x: f"₹{x:,.0f}/kg")
+        w["Trend"] = w["shift_flag"].map(
+            {"SURGING": "📈 Growing fast", "FADING": "📉 Shrinking"}
+        )
         st.dataframe(
-            v.shifts.rename(
-                columns={
-                    "dest_country": "Market",
-                    "india_share_pct": "India share %",
-                    "realised_usd_per_kg": "$/kg",
-                    "recent_shift_pct": "12mo vs prior %",
-                    "shift_flag": "Flag",
-                }
+            w[["dest_country", "You sell there", "They pay", "Trend"]].rename(
+                columns={"dest_country": "Country"}
             ),
             use_container_width=True,
             hide_index=True,
         )
+        st.caption(
+            "Growing markets are where guar demand is rising — good places "
+            "to build new buyers. Shrinking ones are early warnings."
+        )
 
-    with st.expander("FX sensitivity (every ₹ figure scales linearly)"):
+    # ---- All the technical proof, collapsed by default ---------------
+    with st.expander("How sure are we?  (the honest technical details)"):
+        st.markdown(
+            f"**On predicting price:** {v.sig.price_direction_label}. "
+            f"Evidence — {v.sig.backtest_evidence}. {v.move.caveat}"
+        )
+        st.markdown(
+            f"**WHEN signal internals:** trigger `{v.sig.trigger}`; US rig "
+            f"count {v.sig.rig_level:,.0f} "
+            f"({v.sig.rig_yoy_change_pct:+.1f}% vs a year ago); current "
+            f"price in the {v.sig.price_pctile_12m:.0f}th percentile of the "
+            f"last 12 months; worst-quarter analogue "
+            f"−{v.sig.hist_bad_quarter_pct:.1f}%."
+        )
+        if v.sig.scenarios:
+            st.markdown(
+                "**What guar price actually did over the next 6 months, "
+                "historically, after each US-drilling regime** (a "
+                "historical analogue with sample sizes — *not* a forecast):"
+            )
+            sc = pd.DataFrame(v.sig.scenarios)[
+                [
+                    "regime",
+                    "n_windows",
+                    "hist_adverse_drawdown_pct",
+                    "hist_median_move_pct",
+                ]
+            ].rename(
+                columns={
+                    "regime": "US drilling regime",
+                    "n_windows": "n windows",
+                    "hist_adverse_drawdown_pct": "Worst-decile 6-mo move %",
+                    "hist_median_move_pct": "Median 6-mo move %",
+                }
+            )
+            st.dataframe(sc, use_container_width=True, hide_index=True)
+        st.markdown(
+            "**FX sensitivity** (every rupee figure scales linearly with "
+            "the exchange rate):"
+        )
         fx_tbl = pd.DataFrame(
             [
                 {
                     "₹ per $1": r,
-                    "Downside capped": inr(d["downside_lakh"] * 1e5),
-                    "Re-route uplift": inr(d["uplift_lakh"] * 1e5),
+                    "Loss protected": inr(d["downside_lakh"] * 1e5),
+                    "Extra from re-routing": inr(d["uplift_lakh"] * 1e5),
                 }
                 for r, d in v.roi.fx_sensitivity.items()
             ]
         )
         st.dataframe(fx_tbl, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-    st.caption(
-        "**Honest limitations.** Exporter profile is *simulated* (public "
-        "core + simulated private layer). Realised price is a lagged, "
-        "mixed-grade Comtrade proxy. WHERE is India-reporter only — each "
-        "market's *total* world imports (headroom) is a flagged roadmap "
-        "item, not faked. FTA status is a curated, dated reference. WHEN "
-        "does not forecast price (shown above) — it is a risk trigger, and "
-        "its thresholds are economic heuristics, not fitted. Decision-"
-        "framing, not investment advice."
-    )
+        st.caption(
+            "Honest limitations: the example exporter is simulated; "
+            "realised price is a lagged, mixed-grade public-trade proxy; "
+            "market headroom uses world-import data (EU hubs re-export, so "
+            "it overstates true demand there); the WHEN thresholds are "
+            "economic rules of thumb, not fitted to price. Built on UN "
+            "Comtrade + Baker Hughes + IMD — free public sources, data "
+            "lags 6–18 months. Decision-framing, not investment advice."
+        )
+        st.caption(
+            f"runtime: plotly {plotly.__version__} · streamlit " f"{st.__version__}"
+        )
 
 
 if __name__ == "__main__":

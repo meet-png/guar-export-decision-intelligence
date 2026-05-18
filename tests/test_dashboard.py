@@ -46,8 +46,9 @@ def test_assemble_view_is_complete():
 
 
 def test_inr_formatting_lakh_and_crore():
-    assert app.inr(8_770_000).endswith("L")  # ₹87.7 L
-    assert app.inr(25_000_000).endswith("Cr")  # ₹2.50 Cr
+    # plain words, not "L/Cr", so a non-technical exporter reads it
+    assert app.inr(8_770_000).endswith("lakh")  # ₹87.7 lakh
+    assert app.inr(25_000_000).endswith("crore")  # ₹2.50 crore
 
 
 def test_view_reacts_to_inputs():
